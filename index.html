@@ -1,0 +1,472 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>PPL teorie</title>
+	<link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css" integrity="sha384-ggOyR0iXCbMQv3Xipma34MD+dH/1fQ784/j6cY/iJTQUOhcWr7x9JvoRxT2MZw1T" crossorigin="anonymous">
+	<script
+		src="https://code.jquery.com/jquery-3.6.0.slim.min.js"
+		integrity="sha256-u7e5khyithlIdTpu22PHhENmPcRdFiHRjhAuHcs05RI="
+		crossorigin="anonymous"></script>
+	<script src="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/js/bootstrap.min.js" integrity="sha384-JjSmVgyd0p3pXB1rRibZUAYoIIy6OrQ6VrjIEaFf/nJGzIxFDsf4x0xIM+B07jRM" crossorigin="anonymous"></script>
+	<script type="text/javascript" src="subjects.js"></script>
+	<script type="text/javascript">
+		let filteredQuestions = [];
+		let seed;
+		let score = {};
+		let currentQuestion = 0;
+		let subjectsLinks = {
+			1: "https://www.caa.cz/wp-content/uploads/2020/11/1-Letecky-zakon-a-postupy-ATC-letoun.pdf",
+			2: "https://www.caa.cz/wp-content/uploads/2020/11/2-Lidska-vykonnost-%E2%80%93-letoun.pdf",
+			3: "https://www.caa.cz/wp-content/uploads/2020/11/3-Meteorologie-letoun.pdf",
+			4: "https://www.caa.cz/wp-content/uploads/2020/11/4-Spojeni.pdf",
+			5: "https://www.caa.cz/wp-content/uploads/2020/11/5-Letove-zasady-%E2%80%93-letoun.pdf",
+			6: "https://www.caa.cz/wp-content/uploads/2020/11/6-Provozni-postupy-letoun.pdf",
+			7: "https://www.caa.cz/wp-content/uploads/2021/12/7-Vykonnost-a-planovani-letu-letoun.pdf",
+			8: "https://www.caa.cz/wp-content/uploads/2020/11/8-Obecne-znalosti-o-letadle-letoun.pdf",
+			9: "https://www.caa.cz/wp-content/uploads/2020/11/9-Navigace-letoun.pdf",
+		};
+		let subjectNames = {
+			1: "Letecký zákon a postupy",
+			2: "Lidská výkonnost",
+			3: "Meteorologie",
+			4: "Komunikace",
+			5: "Letové zásady",
+			6: "Provozní postupy",
+			7: "Výkonnost a plánování letu",
+			8: "Obecné znalosti o letadle",
+			9: "Navigace",
+		};
+		let subjectsData = {
+			"1": JSON.parse(leteckyZakonAPostupy),
+			"2": JSON.parse(lidskaVykonnost),
+			"3": JSON.parse(meteorologie),
+			"4": JSON.parse(komunikace),
+			"5": JSON.parse(letoveZasady),
+			"6": JSON.parse(provozniPostupy),
+			"7": JSON.parse(vykonnostAPlanovaniLetu),
+			"8": JSON.parse(obecneZnalostiOLetadle),
+			"9": JSON.parse(navigace),
+		};
+		let questionExtraImages = {
+			"CAP697": "CAP697_Table-2-2-3"
+		};
+		function validateSelectSubjectForm() {
+			score.subjects = {};
+			let checkedSubjects = [];
+			for (const [key, value] of Object.entries(subjectsData)) {
+				if (document.forms["selectSubjects"]["subject" + key].checked) {
+					checkedSubjects.push(key);
+				}
+			}
+			if (checkedSubjects.length === 0) {
+				checkedSubjects = Object.keys(subjectsData);
+			}
+			for (let i = 0; i < checkedSubjects.length; i++) {
+				let subjectKey = checkedSubjects[i];
+				filteredQuestions = filteredQuestions.concat(subjectsData[subjectKey])
+				score.subjects[subjectKey] = {
+					total: subjectsData[subjectKey].length,
+					correct: 0,
+					incorrect: 0
+				};
+			}
+			seed = getRandomInt(9999999);
+			if (document.forms["selectSubjects"]["randomQuestionsOrder"].checked) {
+				shuffle(filteredQuestions, seed);
+			}
+			score.questions = {};
+			for (let questionI = 0; questionI < filteredQuestions.length; questionI++) {
+				score.questions[questionI] = null;
+			}
+			document.forms["selectSubjects"].hidden = true;
+			changeQuestion(0);
+			return false;
+		}
+		function validateAnswerForm() {
+			let selectedAnswerElement = null;
+			let radioElement = document.getElementsByName("answer");
+		   	for(let i = 0;i<radioElement.length;i++) {
+		   		if (radioElement[i].checked) {
+		   			selectedAnswerElement = radioElement[i];
+		   		}
+		   	}
+		   	let questionSettings = filteredQuestions[currentQuestion];
+		   	let correctAnswer = questionSettings.correctAnswer + 1;
+		   	if(selectedAnswerElement === null) {
+		   		alert("Zvolte některou možnost");
+		   	} else {
+		   		document.querySelectorAll("#answers input[value='" + correctAnswer + "']")[0].parentElement.classList.add("alert-success");
+				if (correctAnswer !== parseInt(selectedAnswerElement.value)) {
+					selectedAnswerElement.parentElement.classList.add("alert-danger");
+					score.subjects[questionSettings.subject].incorrect++;
+					score.questions[currentQuestion] = parseInt(selectedAnswerElement.value);
+			   	} else {
+					score.subjects[questionSettings.subject].correct++;
+					score.questions[currentQuestion] = correctAnswer;
+			   	}
+		   	}
+			redrawScore();
+			return false;
+		}
+		function getPreviousQuestion() {
+			if (currentQuestion > 0) {
+				changeQuestion(currentQuestion - 1);
+			}
+			return false;
+		}
+		function getNextQuestion() {
+			if (currentQuestion < filteredQuestions.length - 1) {
+				changeQuestion(currentQuestion + 1);
+			}
+			return false;
+		}
+		function changeQuestion(questionNumber) {
+			document.getElementById("answerQuestionButton").disabled = false;
+			currentQuestion = questionNumber;
+			let questionSettings = filteredQuestions[currentQuestion];
+			document.getElementById("questionHeader").innerText = "Otázka " + (currentQuestion + 1);
+			document.getElementById("questionTitle").innerText = questionSettings.question;
+			let questionImage = questionSettings.question.match(/(?:Viz obr\.?|Viz příloha) \(([A-Z-0-9a-z]*)\)/);
+			let questionImageName = null;
+			document.getElementById("image").hidden = true;
+			if (questionImage) {
+				questionImageName = questionImage[1];
+			} else {
+				for (const [key, value] of Object.entries(questionExtraImages)) {
+					if (questionSettings.question.includes(key)) {
+						questionImageName = value;
+						break;
+					}
+				}
+			}
+			if (questionImageName !== null) {
+				document.getElementById("image").src = "assets/" + questionImageName + ".jpg";
+				document.getElementById("image").hidden = false;
+			}
+			let questionPlacementLinkElement = document.createElement('a');
+			questionPlacementLinkElement.setAttribute("href", subjectsLinks[questionSettings.subject]);
+			questionPlacementLinkElement.setAttribute("target", "_blank");
+			questionPlacementLinkElement.innerText = "(" + subjectNames[questionSettings.subject] + ": " + questionSettings.questionNumber + ". otázka)";
+			document.getElementById("questionPlacement").innerHTML = null;
+			document.getElementById("questionPlacement").appendChild(questionPlacementLinkElement);
+			document.getElementById("questionOptions").innerHTML = null;
+			if (questionSettings.questionOptions !== null) {
+				document.getElementById("questionOptions").setAttribute("type", questionSettings.questionOptionsType);
+				questionSettings.questionOptions.forEach(function (questionOption) {
+					let questionOptionElement = document.createElement('li');
+					questionOptionElement.innerText = questionOption;
+					document.getElementById("questionOptions").appendChild(questionOptionElement);
+				});
+			}
+			let radioElement = document.getElementsByName("answer");
+		   	for(let i=0;i<radioElement.length;i++) {
+				radioElement[i].checked = false;
+		   	}
+		   	let questionAnswers = [...questionSettings.answers];
+		   	if(document.forms["selectSubjects"]["randomAnswersOrder"].checked) {
+		   		shuffle(questionAnswers, seed);
+		   	}
+			questionAnswers.forEach(function (answer, index) {
+				document.getElementById("answer" + (index + 1)).value = answer.n + 1;
+				document.getElementById("answer" + (index + 1) + "Label").innerText = answer.a;
+				document.getElementById("answer" + (index + 1) + "Label").parentElement.classList.remove("alert-success");
+				document.getElementById("answer" + (index + 1) + "Label").parentElement.classList.remove("alert-danger");
+			});
+			if (score.questions[questionNumber] !== null) {
+				let selectedAnswerInputElement = document.querySelectorAll("#answers input[value='" + score.questions[questionNumber] + "']")[0];
+				let correctAnswerInputElement = document.querySelectorAll("#answers input[value='" + (questionSettings.correctAnswer + 1) + "']")[0];
+				correctAnswerInputElement.parentElement.classList.add("alert-success");
+				selectedAnswerInputElement.checked = true;
+				if ((questionSettings.correctAnswer + 1) !== score.questions[questionNumber]) {
+					selectedAnswerInputElement.parentElement.classList.add("alert-danger");
+				}
+				document.getElementById("answerQuestionButton").disabled = true;
+			}
+			redrawScore();
+			redrawPaginator();
+			document.getElementById("question").hidden = false;
+			document.getElementById("score").hidden = false;
+			return false;
+		}
+		function redrawScore()
+		{
+			let scoreHeadElement = document.getElementById("scoreHead");
+			let scoreBodyElement = document.getElementById("scoreBody");
+			scoreHeadElement.innerHTML = null;
+			scoreBodyElement.innerHTML = null;
+			let scoreRows = {
+				"head": document.createElement('tr'),
+				"answers": document.createElement('tr'),
+			};
+			let scoreHeadRowElement = document.createElement('tr');
+			let scoreBodyRowElement = document.createElement('tr');
+			for (const [key, value] of Object.entries(score.subjects)) {
+				let subjectScoreNameElement = document.createElement('th');
+				subjectScoreNameElement.innerText = subjectNames[key];
+				scoreHeadRowElement.appendChild(subjectScoreNameElement);
+
+				let subjectScoreAnswersElement = document.createElement('td');
+				subjectScoreAnswersElement.innerText = value.correct + "/" + value.incorrect + " (" + value.total + ")";
+				scoreBodyRowElement.appendChild(subjectScoreAnswersElement);
+			}
+			scoreHeadElement.appendChild(scoreHeadRowElement);
+			scoreBodyElement.appendChild(scoreBodyRowElement);
+		}
+		function redrawPaginator()
+		{
+			let latestQuestionPage = document.getElementById("questionNavigationPrevious");
+			for (const [questionNumber, questionAnswer] of Object.entries(score.questions)) {
+				let existingQuestionPageElement = document.getElementById("questionPage" + questionNumber);
+				if (existingQuestionPageElement) {
+					existingQuestionPageElement.parentElement.removeChild(existingQuestionPageElement);
+				}
+				let questionPageElement = document.createElement('li');
+				questionPageElement.setAttribute("id", "questionPage" + questionNumber);
+				questionPageElement.classList.add('page-item');
+				let questionPageLinkElement = document.createElement('a');
+				questionPageLinkElement.classList.add("page-link");
+				if (questionAnswer !== null) {
+					questionPageLinkElement.classList.add(questionAnswer === (filteredQuestions[questionNumber].correctAnswer + 1) ? 'alert-success' : 'alert-danger');
+				}
+				questionPageLinkElement.setAttribute("href", "#");
+				questionPageLinkElement.setAttribute("onclick", "return changeQuestion(" + questionNumber + ")")
+				questionPageLinkElement.innerText = (parseInt(questionNumber) + 1);
+				questionPageElement.appendChild(questionPageLinkElement);
+				insertAfter(questionPageElement, latestQuestionPage);
+				latestQuestionPage = questionPageElement;
+		   	}
+		   	document.getElementById("questionPage" + currentQuestion).classList.add("active");
+			document.getElementById("questionNavigationToggle").hidden = false;
+			document.getElementById("score").hidden = false;
+			document.getElementById("questionNavigationDiv").hidden = false;
+		}
+		function shuffle(array, seed) {                // <-- ADDED ARGUMENT
+			let m = array.length, t, i;
+
+			// While there remain elements to shuffle…
+			while (m) {
+				// Pick a remaining element…
+				i = Math.floor(random(seed) * m--);        // <-- MODIFIED LINE
+
+				// And swap it with the current element.
+				t = array[m];
+				array[m] = array[i];
+				array[i] = t;
+				++seed                                     // <-- ADDED LINE
+			}
+
+			return array;
+		}
+		function random(seed) {
+			let x = Math.sin(seed++) * 10000; 
+			return x - Math.floor(x);
+		}
+		function getRandomInt(max) {
+			return Math.floor(Math.random() * max);
+		}
+		function insertAfter(newNode, referenceNode) {
+			referenceNode.parentNode.insertBefore(newNode, referenceNode.nextSibling);
+		}
+		$(function () {
+			$('[data-toggle="tooltip"]').tooltip()
+		})
+	</script>
+</head>
+<body>
+	<nav class="navbar navbar-expand-lg navbar-light bg-light">
+		<a href="./index.html" class="navbar-brand mb-0 h1">PPL/LAPL teorie</a>
+		<div class="collapse navbar-collapse" id="navbarNav">
+			<ul class="navbar-nav">
+				<li class="nav-item">
+					<a class="nav-link" href="./faq.html">FAQ</a>
+				</li>
+			</ul>
+		</div>
+	</nav>
+	<div class="container mt-3">
+		<div class="row">
+			<div class="col-sm-12">
+				<form name="selectSubjects" onsubmit="return validateSelectSubjectForm()" method="post">
+					<div class="form-group row">
+						<div class="col-sm-2">Typ letounu</div>
+						<div class="col-sm-10">
+							<div class="form-check">
+								<input class="form-check-input" type="radio" name="aircraftType" id="aircraftType1" value="1" checked>
+								<label class="form-check-label" for="aircraftType1">
+									Letoun
+								</label>
+							</div>
+							<div class="form-check">
+								<input class="form-check-input" type="radio" name="aircraftType" id="aircraftType2" value="2" disabled>
+								<label class="form-check-label" for="aircraftType2">
+									Vrtulník
+								</label>
+							</div>
+						</div>
+					</div>
+					<div class="form-group row">
+						<div class="col-sm-2">Nastavení</div>
+						<div class="col-sm-10">
+							<div class="form-check">
+								<input class="form-check-input" type="checkbox" name="randomQuestionsOrder" id="randomQuestionsOrder" checked>
+								<label class="form-check-label" for="randomQuestionsOrder">
+									Náhodné pořadí otázek
+								</label>
+							</div>
+							<div class="form-check">
+								<input class="form-check-input" type="checkbox" name="randomAnswersOrder" id="randomAnswersOrder" checked>
+								<label class="form-check-label" for="randomAnswersOrder">
+									Náhodné pořadí odpovědí
+								</label>
+							</div>
+						</div>
+					</div>
+					<fieldset class="form-group">
+						<div class="row">
+							<legend class="col-form-label col-sm-2 pt-0">Předměty</legend>
+							<div class="col-sm-10">
+	        					<div class="form-check">
+	        						<input class="form-check-input" type="checkbox" name="subject1" id="subject1">
+									<label class="form-check-label" for="subject1">1 - Letecký zákon a postupy</label>
+								</div>
+	        					<div class="form-check">
+	        						<input class="form-check-input" type="checkbox" name="subject2" id="subject2">
+									<label class="form-check-label" for="subject2">2 - Lidská výkonnost</label>
+								</div>
+	        					<div class="form-check">
+	        						<input class="form-check-input" type="checkbox" name="subject3" id="subject3">
+									<label class="form-check-label" for="subject3">3 - Meteorologie</label>
+								</div>
+	        					<div class="form-check">
+	        						<input class="form-check-input" type="checkbox" name="subject4" id="subject4">
+									<label class="form-check-label" for="subject4">4 - Komunikace</label>
+								</div>
+	        					<div class="form-check">
+	        						<input class="form-check-input" type="checkbox" name="subject5" id="subject5">
+									<label class="form-check-label" for="subject5">5 - Letové zásady</label>
+								</div>
+	        					<div class="form-check">
+	        						<input class="form-check-input" type="checkbox" name="subject6" id="subject6">
+									<label class="form-check-label" for="subject6">6 - Provozní postupy</label>
+								</div>
+	        					<div class="form-check">
+	        						<input class="form-check-input" type="checkbox" name="subject7" id="subject7">
+									<label class="form-check-label" for="subject7">7 - Výkonnost a plánování letu</label>
+								</div>
+	        					<div class="form-check">
+	        						<input class="form-check-input" type="checkbox" name="subject8" id="subject8">
+									<label class="form-check-label" for="subject8">8 - Obecné znalosti o letadle</label>
+								</div>
+	        					<div class="form-check">
+	        						<input class="form-check-input" type="checkbox" name="subject9" id="subject9">
+									<label class="form-check-label" for="subject9">9 - Navigace</label>
+								</div>
+							</div>
+						</div>
+					</fieldset>
+				  	<div class="form-group row">
+				    	<div class="offset-sm-2 col-sm-10">
+							<input type="submit" class="btn btn-primary" value="Spustit"> (Žádný předmět = Všechny předměty)
+						</div>
+					</div>
+				</form>
+			</div>
+		</div>
+		<div class="row" id="questionNavigationToggle" hidden>
+			<div class="col-sm-12">
+				<button class="btn btn-primary" type="button" data-toggle="collapse" data-target="#questionNavigationDiv" aria-expanded="false" aria-controls="questionNavigationDiv">
+					Zobrazit stránkování
+				</button>
+			</div>
+		</div>
+		<div class="row collapse" id="questionNavigationDiv" hidden>
+			<div class="col-sm-12">
+				<nav aria-label="Stránkování otázek">
+					<ul class="pagination pagination-sm flex-wrap">
+						<li class="page-item" id="questionNavigationPrevious">
+							<a class="page-link" href="#" aria-label="Previous">
+								<span aria-hidden="true">&laquo;</span>
+							</a>
+						</li>
+						<li class="page-item">
+							<a class="page-link" href="#" aria-label="Next">
+								<span aria-hidden="true">&raquo;</span>
+							</a>
+						</li>
+					</ul>
+				</nav>
+			</div>
+		</div>
+		<div class="row my-2" id="score" hidden>
+			<div class="col-sm-12">
+				<table class="table table-bordered">
+					<thead class="thead-dark" id="scoreHead"></thead>
+					<tbody id="scoreBody"></tbody>
+				</table>
+			</div>
+		</div>
+		<div id="question" class="row my-2" hidden>
+			<div class="col-sm-7">
+				<div class="row">
+					<div class="col-sm-12 card text-center" style="width: 18rem;">
+						<div class="card-header" id="questionHeader"></div>
+						<div class="card-body">
+							<p class="card-text small" id="questionPlacement"></p>
+							<h5 class="card-title" id="questionTitle"></h5>
+							<ol id="questionOptions"></ol>
+						</div>
+					</div>
+				</div>
+				<div class="row mt-3">
+					<div class="offset-sm-2 col-sm-8">
+						<form name="answerForm" onsubmit="return validateAnswerForm()">
+							<fieldset class="form-group" id="answers">
+								<div class="row">
+									<div class="col-sm-12">
+			        					<div class="form-check">
+			        						<input class="form-check-input" type="radio" name="answer" id="answer1">
+											<label class="form-check-label" for="answer1" id="answer1Label"></label>	
+										</div>
+			        					<div class="form-check">
+			        						<input class="form-check-input" type="radio" name="answer" id="answer2">
+											<label class="form-check-label" for="answer2" id="answer2Label"></label>
+										</div>
+										<div class="form-check">
+											<input class="form-check-input" type="radio" name="answer" id="answer3">
+											<label class="form-check-label" for="answer3" id="answer3Label"></label>
+										</div>
+										<div class="form-check">
+											<input class="form-check-input" type="radio" name="answer" id="answer4">
+											<label class="form-check-label" for="answer4" id="answer4Label"></label>
+										</div>
+									</div>
+								</div>
+							</fieldset>
+						  	<div class="form-group row">
+						    	<div class="col-sm-4 text-left">
+									<button id="previousQuestionButton" class="btn btn-secondary" onclick="return getPreviousQuestion()">
+										&laquo;
+									</button>
+								</div>
+						    	<div class="col-sm-4 text-center">
+									<input type="submit" class="btn btn-primary" value="Odpovědět" id="answerQuestionButton">
+								</div>
+						    	<div class="col-sm-4 text-right">
+									<button id="nextQuestionButton" class="btn btn-secondary" onclick="return getNextQuestion()">
+										&raquo;
+									</button>
+								</div>
+							</div>
+						</form>
+					</div>
+				</div>
+			</div>
+			<div class="col-sm-5">
+				<img class="card-img-top" id="image">
+			</div>
+		</div>
+	</div>
+</body>
+</html>
