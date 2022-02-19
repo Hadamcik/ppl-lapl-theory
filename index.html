@@ -115,10 +115,10 @@
 					score.subjects[questionSettings.subject].correct++;
 					score.questions[currentQuestion] = correctAnswer;
 			   	}
+				document.getElementById("answerQuestionButton").setAttribute("onclick", "return getNextQuestion()");
+				document.getElementById("answerQuestionButton").innerText = "Další";
+				redrawScore();
 		   	}
-			document.getElementById("answerQuestionButton").setAttribute("onclick", "return getNextQuestion()");
-			document.getElementById("answerQuestionButton").innerText = "Další";
-			redrawScore();
 			return false;
 		}
 		function getPreviousQuestion() {
